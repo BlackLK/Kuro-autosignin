@@ -1,0 +1,52 @@
+name: Kuro Auto Signin
+
+on:
+  schedule:
+    # 每天北京时间早上 8:30 运行 (UTC 0:30)
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  signin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Run Sign-in Script
+        env:
+          # 账号信息
+          KuroBBSAccount: ${{ secrets.KUROBBSACCOUNT }}
+          
+          # 推送配置 (可选)
+          PUSH_SETTING_ENABLE: ${{ secrets.PUSH_SETTING_ENABLE }}
+          PUSH_SETTING_PUSH_SERVER: ${{ secrets.PUSH_SETTING_PUSH_SERVER }}
+          PUSH_SETTING_PUSH_LEVEL: ${{ secrets.PUSH_SETTING_PUSH_LEVEL }}
+          
+          # 推送具体配置 (根据选择的推送服务设置)
+          # 例如 Pushplus:
+          PUSH_SETTING_PUSH_TOKEN: ${{ secrets.PUSH_SETTING_PUSH_TOKEN }}
+          
+          # 例如 Telegram:
+          PUSH_TELEGRAM_API_URL: ${{ secrets.PUSH_TELEGRAM_API_URL }}
+          PUSH_TELEGRAM_BOT_TOKEN: ${{ secrets.PUSH_TELEGRAM_BOT_TOKEN }}
+          PUSH_TELEGRAM_CHAT_ID: ${{ secrets.PUSH_TELEGRAM_CHAT_ID }}
+          
+          # 其他环境变量
+          KuroBBS_config_path: "./config"
+        run: python main.py
