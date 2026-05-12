@@ -46,6 +46,10 @@ jobs:
           PUSH_TELEGRAM_API_URL: ${{ secrets.PUSH_TELEGRAM_API_URL }}
           PUSH_TELEGRAM_BOT_TOKEN: ${{ secrets.PUSH_TELEGRAM_BOT_TOKEN }}
           PUSH_TELEGRAM_CHAT_ID: ${{ secrets.PUSH_TELEGRAM_CHAT_ID }}
+
+          # 例如 钉钉机器人:
+          PUSH_DINGROBOT_WEBHOOK: ${{ secrets.PUSH_DINGROBOT_WEBHOOK }}
+          PUSH_DINGROBOT_SECRET: ${{ secrets.PUSH_DINGROBOT_SECRET }}
           
           # 其他环境变量
           KuroBBS_config_path: "./config"
