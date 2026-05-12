@@ -53,9 +53,14 @@ def load_push_config(config_path: str) -> Optional[Dict]:
     # 优先检查环境变量
     if os.environ.get("PUSH_SETTING_ENABLE"):
         log_info("从环境变量加载推送配置")
+        try:
+            push_level = int(os.environ.get("PUSH_SETTING_PUSH_LEVEL", "1"))
+        except (ValueError, TypeError):
+            push_level = 1
+            
         return {
             "enable": os.environ.get("PUSH_SETTING_ENABLE", "false").lower() in ("true", "1", "yes"),
-            "push_level": int(os.environ.get("PUSH_SETTING_PUSH_LEVEL", "1")),
+            "push_level": push_level,
             "push_server": os.environ.get("PUSH_SETTING_PUSH_SERVER", ""),
         }
 

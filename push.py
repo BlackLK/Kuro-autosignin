@@ -48,7 +48,10 @@ class EnvConfigParser(ConfigParser):
     def getint(self, section, option, *args, **kwargs):
         env_key = f"PUSH_{section.upper()}_{option.upper()}"
         if env_key in os.environ:
-            return int(os.environ[env_key])
+            try:
+                return int(os.environ[env_key])
+            except (ValueError, TypeError):
+                return kwargs.get('fallback') if 'fallback' in kwargs else super().getint(section, option, *args, **kwargs)
         return super().getint(section, option, *args, **kwargs)
 
 cfg = EnvConfigParser()
