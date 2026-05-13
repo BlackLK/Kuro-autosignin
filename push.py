@@ -9,7 +9,7 @@ import urllib
 import hashlib
 from datetime import datetime, timezone
 import sys
-from configparser import ConfigParser, NoOptionError
+from configparser import ConfigParser, NoOptionError, NoSectionError
 from log import (
     log_info,
     # log_debug,
@@ -36,23 +36,36 @@ class EnvConfigParser(ConfigParser):
         env_key = f"PUSH_{section.upper()}_{option.upper()}"
         if env_key in os.environ:
             return os.environ[env_key]
-        return super().get(section, option, *args, **kwargs)
+        try:
+            return super().get(section, option, *args, **kwargs)
+        except (NoSectionError, NoOptionError):
+            if 'fallback' in kwargs:
+                return kwargs['fallback']
+            # 为常用的配置提供默认值，防止程序崩溃
+            defaults = {
+                ("setting", "enable"): "false",
+                ("setting", "push_server"): "",
+                ("setting", "push_level"): "1",
+                ("telegram", "api_url"): "api.telegram.org",
+                ("bark", "api_url"): "https://api.day.app",
+                ("pushdeer", "api_url"): "https://api2.pushdeer.com",
+            }
+            return defaults.get((section.lower(), option.lower()), "")
 
     def getboolean(self, section, option, *args, **kwargs):
-        env_key = f"PUSH_{section.upper()}_{option.upper()}"
-        if env_key in os.environ:
-            val = os.environ[env_key].lower()
-            return val in ('true', '1', 'yes', 'on', 't', 'y')
-        return super().getboolean(section, option, *args, **kwargs)
+        val = self.get(section, option, **kwargs)
+        if isinstance(val, bool):
+            return val
+        return val.lower() in ('true', '1', 'yes', 'on', 't', 'y')
 
     def getint(self, section, option, *args, **kwargs):
-        env_key = f"PUSH_{section.upper()}_{option.upper()}"
-        if env_key in os.environ:
-            try:
-                return int(os.environ[env_key])
-            except (ValueError, TypeError):
-                return kwargs.get('fallback') if 'fallback' in kwargs else super().getint(section, option, *args, **kwargs)
-        return super().getint(section, option, *args, **kwargs)
+        val = self.get(section, option, **kwargs)
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            if 'fallback' in kwargs:
+                return kwargs['fallback']
+            return 0
 
 cfg = EnvConfigParser()
 
