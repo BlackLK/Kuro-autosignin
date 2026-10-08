@@ -126,13 +126,19 @@ class TaskSummary:
     success_users: List[str]
     failed_users: List[str]
     disabled_users: List[str]
+    failed_reasons: Optional[Dict[str, str]] = None
 
     def __str__(self) -> str:
         """格式化输出"""
+        reasons = self.failed_reasons or {}
+        failed_desc = ", ".join(
+            f"{user}（{reasons[user]}）" if reasons.get(user) else user
+            for user in self.failed_users
+        )
         lines = [
             f"{self.date} 签到结果总结：",
             f"签到成功的用户: {', '.join(self.success_users) if self.success_users else '无'}",
-            f"签到失败的用户: {', '.join(self.failed_users) if self.failed_users else '无'}",
+            f"签到失败的用户: {failed_desc if self.failed_users else '无'}",
         ]
         if self.disabled_users:
             lines.append(f"已自动禁用的用户: {', '.join(self.disabled_users)}")

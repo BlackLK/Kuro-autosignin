@@ -22,6 +22,7 @@ from log import (
     log_error,
     log_info,
 )
+from models import TokenExpiredException
 
 
 def get_ip_address() -> str:
@@ -102,7 +103,12 @@ def get_user_info_by_token(token: str, devcode: str, distinct_id: str) -> Option
                 return user_id
 
         log_error(f"获取用户信息失败: {response.message}")
+        if "登录已过期" in (response.message or ""):
+            # 登录过期需要向上传递，让推送消息能显示具体原因
+            raise TokenExpiredException(response.message)
         return None
+    except TokenExpiredException:
+        raise
     except Exception as e:
         log_error(f"请求失败: {e}")
         return None

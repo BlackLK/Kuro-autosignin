@@ -32,11 +32,11 @@ class SignInManager:
         """
         self.config_manager = config_manager
 
-    def sign_in_user(self, user_name: str) -> Tuple[ResponseStatus, List[str]]:
+    def sign_in_user(self, user_name: str) -> Tuple[ResponseStatus, List[str], str]:
         """
         执行单个用户的签到，如果失败则随机延迟后重试
         :param user_name: 用户名
-        :return: (状态, 消息列表)
+        :return: (状态, 消息列表, 失败原因)
         """
         # 先加载用户配置以获取重试次数
         config = self.config_manager.load_user_config(user_name)
@@ -45,7 +45,7 @@ class SignInManager:
             msg = f"{user_name} 配置加载失败，跳过签到"
             messages.append(msg)
             log_error(msg)
-            return ResponseStatus.FAILED, messages
+            return ResponseStatus.FAILED, messages, "配置加载失败"
 
         # 从配置中读取重试次数（默认3）
         max_retries = config.get_max_retries()
@@ -66,7 +66,7 @@ class SignInManager:
                 msg = f"{user_name} 已禁用，跳过签到"
                 messages.append(msg)
                 log_info(msg)
-                return ResponseStatus.SKIPPED, messages
+                return ResponseStatus.SKIPPED, messages, ""
 
             # 检查token
             if not config.token:
@@ -74,18 +74,24 @@ class SignInManager:
                 messages.append(msg)
                 log_error(msg)
                 self.config_manager.disable_user(user_name)
-                return ResponseStatus.FAILED, messages
+                return ResponseStatus.FAILED, messages, "token 为空"
 
             # 检查配置是否完整
             if not config.completed:
                 log_info(f"{user_name} 配置文件不完整，开始执行填充流程")
-                if not self.config_manager.fill_config(user_name, config.token):
-                    msg = f"{user_name} 配置填充失败，跳过签到"
+                try:
+                    if not self.config_manager.fill_config(user_name, config.token):
+                        msg = f"{user_name} 配置填充失败，跳过签到"
+                        messages.append(msg)
+                        log_error(msg)
+                        return ResponseStatus.FAILED, messages, "配置填充失败（token 无效或接口异常）"
+                    # 重新加载配置
+                    config = self.config_manager.load_user_config(user_name)
+                except TokenExpiredException as e:
+                    msg = f"{user_name} 配置填充失败: {e}，跳过签到"
                     messages.append(msg)
                     log_error(msg)
-                    return ResponseStatus.FAILED, messages
-                # 重新加载配置
-                config = self.config_manager.load_user_config(user_name)
+                    return ResponseStatus.FAILED, messages, str(e) or "登录已过期"
 
             try:
                 # 创建HTTP客户端
@@ -131,27 +137,27 @@ class SignInManager:
                 messages.append(f"{user_name} 签到结束")
                 log_info(f"{user_name} 签到完成")
 
-                return ResponseStatus.SUCCESS, messages
+                return ResponseStatus.SUCCESS, messages, ""
 
             except TokenExpiredException:
                 msg = f"{user_name} 登录已过期，自动禁用该用户"
                 messages.append(msg)
                 log_error(msg)
                 self.config_manager.disable_user(user_name)
-                return ResponseStatus.FAILED, messages
+                return ResponseStatus.FAILED, messages, "登录已过期"
 
             except UserInfoException:
                 msg = f"{user_name} 用户信息异常，自动禁用该用户"
                 messages.append(msg)
                 log_error(msg)
                 self.config_manager.disable_user(user_name)
-                return ResponseStatus.FAILED, messages
+                return ResponseStatus.FAILED, messages, "用户信息异常"
 
             except Exception as e:
                 msg = f"{user_name} 签到失败: {str(e)}"
                 messages.append(msg)
                 log_error(msg)
-                
+
                 # 如果还有重试次数，则随机延迟后重试
                 retry_count += 1
                 if retry_count <= max_retries:
@@ -164,7 +170,7 @@ class SignInManager:
                     final_msg = f"{user_name} 重试 {max_retries} 次后仍然失败，放弃签到"
                     messages.append(final_msg)
                     log_error(final_msg)
-                    return ResponseStatus.FAILED, messages
+                    return ResponseStatus.FAILED, messages, f"签到失败: {str(e)}"
 
     def run_all(self) -> Tuple[TaskSummary, List[str]]:
         """
@@ -175,6 +181,7 @@ class SignInManager:
         success_users = []
         failed_users = []
         disabled_users = []
+        failed_reasons = {}
 
         current_date = datetime.datetime.now().strftime("%Y-%m-%d")
         start_msg = f"{current_date} 开始签到任务"
@@ -188,7 +195,7 @@ class SignInManager:
             # 等待避免请求过快
             time.sleep(1)
 
-            status, messages = self.sign_in_user(user_name)
+            status, messages, reason = self.sign_in_user(user_name)
             all_messages.extend(messages)
 
             # 统计结果
@@ -202,6 +209,8 @@ class SignInManager:
                     disabled_users.append(user_name)
                 else:
                     failed_users.append(user_name)
+                    if reason:
+                        failed_reasons[user_name] = reason
             else:
                 success_users.append(user_name)
 
@@ -211,6 +220,7 @@ class SignInManager:
             success_users=success_users,
             failed_users=failed_users,
             disabled_users=disabled_users,
+            failed_reasons=failed_reasons,
         )
 
         summary_msg = str(summary)

@@ -9,6 +9,7 @@ import yaml
 from log import log_info, log_error, log_debug
 from models import (
     UserConfig,
+    TokenExpiredException,
     # ConfigException
 )
 from tools import get_user_info_by_token, get_game_user_id
@@ -288,6 +289,9 @@ class ConfigManager:
 
             return False
 
+        except TokenExpiredException:
+            # 登录过期向上传递，让签到流程能识别具体原因
+            raise
         except Exception as e:
             log_error(f"填充配置文件失败: {e}")
             return False
