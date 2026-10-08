@@ -1,0 +1,35 @@
+name: Keepalive
+
+# 定期检查仓库活跃度，防止 GitHub 因 60 天无提交自动禁用定时工作流
+on:
+  schedule:
+    - cron: '0 2 * * 1' # 每周一 UTC 2:00（北京时间 10:00）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push keepalive commit if repository is inactive
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          LAST_TS=$(git log -1 --format=%ct)
+          NOW=$(date +%s)
+          AGE_DAYS=$(( (NOW - LAST_TS) / 86400 ))
+          echo "最后一次提交距今 ${AGE_DAYS} 天"
+
+          if [ "$AGE_DAYS" -ge 50 ]; then
+            git commit --allow-empty -m "chore: keepalive commit to prevent scheduled workflow auto-disable"
+            git push
+          else
+            echo "仓库最近有提交活动，无需 keepalive"
+          fi
